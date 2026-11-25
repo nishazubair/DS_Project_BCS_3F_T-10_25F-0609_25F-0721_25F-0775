@@ -85,3 +85,109 @@ struct Flight {
 };
 
 struct Crew { string id, name, role, callsign; Crew* next; };
+
+// singly linked queue: head = front, tail = back
+template <class T> class Queue {
+    struct N { T v; N* next; };
+    N* h, * t; int cnt;
+public:
+    Queue() {
+        h = t = nullptr;
+        cnt = 0;
+    }
+
+    ~Queue() { while (h) pop(); }
+
+    void push(T v) {
+        N* n = new N{ v, nullptr };
+        if (t)
+            t->next = n;
+        else
+            h = n;
+        t = n;
+        cnt++;
+    }
+
+    T pop() {
+        N* n = h;
+        T v = n->v;
+        h = n->next;
+        if (!h)
+            t = nullptr;
+        delete n;
+        cnt--;
+        return v;
+    }
+
+    T front() { return h->v; }
+    bool empty() { return h == nullptr; }
+    int size() { return cnt; }
+    T at(int i) {      // i-th element (for display)
+        N* c = h;
+        while (i-- > 0)
+            c = c->next;
+        return c->v;
+    }
+
+    void remove(T v) {      // remove the first matching value
+        N* p = nullptr, * c = h;
+        while (c && !(c->v == v)) { p = c; c = c->next; }
+        if (!c) return;
+        if (p) p->next = c->next; else h = c->next;
+        if (c == t) t = p;
+        delete c; cnt--;
+    }
+};
+
+// singly linked stack: top = newest
+template <class T> class Stack {
+    struct N { T v; N* next; };
+    N* top;
+public:
+    Stack() { top = nullptr; }
+    ~Stack() { clear(); }
+    void push(T v) { top = new N{ v, top }; }
+    T pop() { N* n = top; T v = n->v; top = n->next; delete n; return v; }
+    bool empty() { return top == nullptr; }
+    void clear() { while (top) pop(); }
+};
+
+// min-heap in a dynamic array: the smallest key is always at index 0
+// a[] holds the values, k[] the keys; both arrays are swapped together
+template <class T> class Heap {
+    T* a; long* k; int n, cap;
+    void swp(int i, int j) { T t = a[i]; a[i] = a[j]; a[j] = t; long q = k[i]; k[i] = k[j]; k[j] = q; }
+    void up(int i) { while (i > 0 && k[(i - 1) / 2] > k[i]) { swp(i, (i - 1) / 2); i = (i - 1) / 2; } }
+    void down(int i) {
+        while (true) {
+            int l = 2 * i + 1, r = l + 1, m = i;
+            if (l < n && k[l] < k[m]) m = l;
+            if (r < n && k[r] < k[m]) m = r;
+            if (m == i) break;
+            swp(i, m); i = m;
+        }
+    }
+public:
+    Heap() { cap = 64; n = 0; a = new T[cap]; k = new long[cap]; }
+    ~Heap() { delete[] a; delete[] k; }
+    void push(long key, T v) {
+        if (n == cap) {     // array full: double its size
+            cap *= 2; T* na = new T[cap]; long* nk = new long[cap];
+            for (int i = 0; i < n; i++) { na[i] = a[i]; nk[i] = k[i]; }
+            delete[] a; delete[] k; a = na; k = nk;
+        }
+        a[n] = v; k[n] = key; up(n); n++;
+    }
+    T pop() { T r = a[0]; n--; a[0] = a[n]; k[0] = k[n]; down(0); return r; }
+    T top() { return a[0]; }
+    bool empty() { return n == 0; }
+    int size() { return n; }
+    T at(int i) { return a[i]; }
+    void remove(T v) {      // remove an arbitrary value, then repair the heap
+        for (int i = 0; i < n; i++) if (a[i] == v) {
+            n--;
+            if (i != n) { a[i] = a[n]; k[i] = k[n]; up(i); down(i); }
+            return;
+        }
+    }
+};
