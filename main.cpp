@@ -194,13 +194,37 @@ public:
 
 class Registration {
     Crew* chead, * ctail;               // crew list (singly linked)
+    Flight* table[HASH_SIZE];          // hash table slots (pointers to list nodes)
+    int state[HASH_SIZE];              // slot state: 0 empty, 1 used, 2 tombstone (deleted)
+    int collisions, longest;           // statistics for displayStats
+
+    // polynomial string hash reduced modulo the (prime) table size
+    int hashFn(const string& s) {
+        int h = 0;
+        for (int i = 0; i < (int)s.size(); i++)
+            h = (h * 31 + (unsigned char)s[i]) % HASH_SIZE;
+        return h;
+    }
+
+    // probe linearly until the callsign is found or an EMPTY slot is hit
+    // tombstones are skipped so earlier collisions stay reachable
+    int slot(const string& cs) {
+        int i = hashFn(cs), p = 0;
+        while (state[i] != 0 && p < HASH_SIZE) {
+            if (state[i] == 1 && table[i]->callsign == cs) return i;
+            i = (i + 1) % HASH_SIZE;
+            p++;
+        }
+        return -1;
+    }
 public:
     Flight* head, * tail; int count;    // list of active flights
 
     Registration() {
         head = tail = nullptr;
         chead = ctail = nullptr;
-        count = 0;
+        count = collisions = longest = 0;
+        for (int i = 0; i < HASH_SIZE; i++) { table[i] = nullptr; state[i] = 0; }
     }
 
     ~Registration() {
@@ -208,32 +232,45 @@ public:
         while (chead) { Crew* n = chead->next; delete chead; chead = n; }
     }
 
-    // walks the whole list, so lookup is O(n)
+    // O(1) average lookup through the hash table
     Flight* find(const string& cs) {
-        for (Flight* f = head; f; f = f->next)
-            if (f->callsign == cs)
-                return f;
-        return nullptr;
+        int i = slot(cs);
+        return i < 0 ? nullptr : table[i];
     }
 
-    // append at the tail; false if the callsign already exists
+    // append at the tail of the list and insert into the hash table
+    // false for a duplicate callsign or a nearly full table
     bool addFlight(Flight* f) {
-        if (find(f->callsign)) return false;
+        if (count >= HASH_SIZE - 5 || find(f->callsign)) return false;
         f->next = nullptr;
         if (tail) tail->next = f; else head = f;
         tail = f;
         count++;
+
+        int i = hashFn(f->callsign), p = 0;
+        while (state[i] == 1) {         // linear probing: try the next slot
+            i = (i + 1) % HASH_SIZE;
+            p++;
+            collisions++;
+        }
+        table[i] = f;
+        state[i] = 1;
+        if (p > longest) longest = p;
         return true;
     }
 
-    // unlink the node from the list and free it
+    // leave a tombstone in the hash table, unlink the node and free it
     bool removeFlight(const string& cs) {
+        int i = slot(cs);
+        if (i < 0) return false;
+        Flight* f = table[i];
+        state[i] = 2;
+
         Flight* p = nullptr, * c = head;
-        while (c && c->callsign != cs) { p = c; c = c->next; }
-        if (!c) return false;
-        if (p) p->next = c->next; else head = c->next;
-        if (tail == c) tail = p;
-        delete c;
+        while (c != f) { p = c; c = c->next; }
+        if (p) p->next = f->next; else head = f->next;
+        if (tail == f) tail = p;
+        delete f;
         count--;
         return true;
     }
@@ -270,5 +307,10 @@ public:
             if (c->callsign == cs && c->role == "Pilot")
                 return c->name;
         return "unknown";
+    }
+
+    void displayStats() {
+        cout << "Hash table: load factor " << (double)count / HASH_SIZE
+             << ", collisions " << collisions << ", longest probe " << longest << endl;
     }
 };
