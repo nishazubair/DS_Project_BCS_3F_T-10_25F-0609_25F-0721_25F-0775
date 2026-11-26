@@ -1,0 +1,4 @@
+BB-876 Airbus_A320neo BlackBox Byte_City Cloud_Town 150 15 Air_Segment Runway_04 9 0
+BB-437 Viking_DHC-8 BlackBox Stack_Port Heap_Bay 60 12 Cache_Fly Runway_09 9 0
+BB-211 ATR_72 BlackBox Node_Ville Queue_City 70 11 Alpha_Tree Runway_17 9 0
+BB-940 MedEvac-1 BlackBox Array_Town Tree_City 5 10 Syntax_Sector Runway_12 9 0
