@@ -191,3 +191,84 @@ public:
         }
     }
 };
+
+class Registration {
+    Crew* chead, * ctail;               // crew list (singly linked)
+public:
+    Flight* head, * tail; int count;    // list of active flights
+
+    Registration() {
+        head = tail = nullptr;
+        chead = ctail = nullptr;
+        count = 0;
+    }
+
+    ~Registration() {
+        while (head) { Flight* n = head->next; delete head; head = n; }
+        while (chead) { Crew* n = chead->next; delete chead; chead = n; }
+    }
+
+    // walks the whole list, so lookup is O(n)
+    Flight* find(const string& cs) {
+        for (Flight* f = head; f; f = f->next)
+            if (f->callsign == cs)
+                return f;
+        return nullptr;
+    }
+
+    // append at the tail; false if the callsign already exists
+    bool addFlight(Flight* f) {
+        if (find(f->callsign)) return false;
+        f->next = nullptr;
+        if (tail) tail->next = f; else head = f;
+        tail = f;
+        count++;
+        return true;
+    }
+
+    // unlink the node from the list and free it
+    bool removeFlight(const string& cs) {
+        Flight* p = nullptr, * c = head;
+        while (c && c->callsign != cs) { p = c; c = c->next; }
+        if (!c) return false;
+        if (p) p->next = c->next; else head = c->next;
+        if (tail == c) tail = p;
+        delete c;
+        count--;
+        return true;
+    }
+
+    // every active flight burns 1 unit of fuel per tick
+    void updateAllFlights() { for (Flight* f = head; f; f = f->next) f->fuel--; }
+
+    void printFlight(Flight* f) {
+        cout << f->callsign << " | " << f->type << " | " << f->airline << " | " << f->origin << "->" << f->dest << " | pax " << f->pax
+            << " | fuel " << f->fuel << " | " << f->sector << " -> " << f->runway << " | " << PRIO_NAME[f->priority] << endl;
+    }
+
+    void displayAllFlights() {
+        cout << "--- Flight Records (" << count << ") ---" << endl;
+        for (Flight* f = head; f; f = f->next) printFlight(f);
+    }
+
+    // crew records are appended at the tail of their own list
+    void addCrew(Crew* c) {
+        c->next = nullptr;
+        if (ctail) ctail->next = c; else chead = c;
+        ctail = c;
+    }
+
+    void displayAllCrew() {
+        cout << "--- Crew Members ---" << endl;
+        for (Crew* c = chead; c; c = c->next)
+            cout << c->id << " | " << c->name << " | " << c->role << " | " << c->callsign << endl;
+    }
+
+    // name of the pilot assigned to a callsign
+    string pilotOf(const string& cs) {
+        for (Crew* c = chead; c; c = c->next)
+            if (c->callsign == cs && c->role == "Pilot")
+                return c->name;
+        return "unknown";
+    }
+};
