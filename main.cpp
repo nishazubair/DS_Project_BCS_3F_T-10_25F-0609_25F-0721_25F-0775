@@ -565,3 +565,22 @@ protected:
         return n;   // return the (possibly new) top of this subtree
     }
 };
+
+// BST vs AVL height test: 15 callsigns inserted in sorted order
+int main() {
+    BSTflight tb;        // plain BST
+    AVLflight ta;        // self-balancing AVL
+    Flight d[15];        // 15 dummy flights (the trees only store pointers to these)
+
+    for (int i = 0; i < 15; i++) {
+        // Zero-padded names: AA-01 ... AA-15
+        // (padding matters: without it "AA-10" would sort before "AA-2" as text)
+        d[i].callsign = string("AA-") + (i + 1 < 10 ? "0" : "") + to_string(i + 1);
+        tb.insert(&d[i]);
+        ta.insert(&d[i]);
+    }
+
+    cout << "BST height = " << tb.height() << endl;
+    cout << "AVL height = " << ta.height() << endl;
+    return 0;
+}
