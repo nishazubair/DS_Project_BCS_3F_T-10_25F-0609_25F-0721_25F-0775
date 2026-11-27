@@ -311,6 +311,165 @@ public:
 
     void displayStats() {
         cout << "Hash table: load factor " << (double)count / HASH_SIZE
-             << ", collisions " << collisions << ", longest probe " << longest << endl;
+            << ", collisions " << collisions << ", longest probe " << longest << endl;
     }
+};
+
+//  MODULE 4 : BSTflight (Binary Search Tree for the flight manifest)
+//  What it does: keeps all active flights sorted by callsign (BB-211,
+//  BB-437, ...) so we can search, insert and delete a flight quickly.
+//  Rule of the tree: smaller callsign goes LEFT, bigger goes RIGHT.
+//  Note: the tree only stores a pointer to the Flight, it does not own
+//  the Flight itself (Registration owns it).
+
+// One box in the tree.
+// f = the flight stored here, l = left child, r = right child,
+// h = height of this node (a leaf has height 1)
+struct TNode { Flight* f; TNode* l, * r; int h; };
+
+class BSTflight {
+protected:   // protected so the AVL class (Module 5) can use these later
+    TNode* root;   // top of the tree (nullptr when the tree is empty)
+
+    // Height of a node. An empty node (nullptr) has height 0.
+    static int ht(TNode* n) { return n ? n->h : 0; }
+
+    // Recalculate a node's height = 1 + the taller of its two children.
+    static void upd(TNode* n) {
+        int a = ht(n->l);
+        int b = ht(n->r);
+        n->h = 1 + (a > b ? a : b);
+    }
+
+    // Called after every insert/delete on the way back up.
+    // Plain BST: only refresh the height.
+    // "virtual" lets AVL replace this with a version that also balances.
+    virtual TNode* fix(TNode* n) { 
+        upd(n);
+        return n;
+    }      // BST: only refresh the height
+
+    // Insert a flight (recursive). Returns the new root of this subtree.
+    TNode* ins(TNode* n, Flight* f) {
+        // Empty spot found: create the new node here (height 1)
+        if (!n)
+            return new TNode{ f, nullptr, nullptr, 1 };
+        // Smaller callsign goes left, otherwise right
+        if (f->callsign < n->f->callsign)
+            n->l = ins(n->l, f);
+        else
+            n->r = ins(n->r, f);
+
+        return fix(n);   // update height while coming back up
+    }
+
+    // Delete the flight with callsign 'cs' (recursive).
+    // Returns the new root of this subtree.
+    // Delete the flight with callsign 'cs' (recursive).
+// Returns the new root of this subtree.
+    TNode* del(TNode* n, const string& cs) {
+
+        // CASE 0: tree/subtree is empty -> callsign not found, nothing to delete
+        if (!n)
+            return nullptr;
+
+        // Not this node yet: keep searching
+        if (cs < n->f->callsign) {
+            n->l = del(n->l, cs);          // search in the left side
+        }
+        else if (cs > n->f->callsign) {
+            n->r = del(n->r, cs);          // search in the right side
+        }
+        else {
+            // ---- Found the node to delete ----
+
+            // CASE 1: leaf node (no children)
+            // Just delete it. Its parent will now point to nullptr.
+            if (!n->l && !n->r) {
+                delete n;
+                return nullptr;
+            }
+
+            // CASE 2: only a RIGHT child (left is empty)
+            // Delete the node and put its right child in its place.
+            else if (!n->l) {
+                TNode* c = n->r;
+                delete n;
+                return c;
+            }
+
+            // CASE 3: only a LEFT child (right is empty)
+            // Delete the node and put its left child in its place.
+            else if (!n->r) {
+                TNode* c = n->l;
+                delete n;
+                return c;
+            }
+
+            // CASE 4: two children
+            // Find the in-order successor = smallest node in the right subtree.
+            // Copy its flight into this node, then delete the successor
+            // from the right subtree (it has at most one child, so it falls
+            // into case 1 or 2 on the recursive call).
+            else {
+                TNode* m = n->r;
+                while (m->l)
+                    m = m->l;
+                n->f = m->f;
+                n->r = del(n->r, m->f->callsign);
+            }
+        }
+
+        return fix(n);   // update height (and balance in AVL) while coming back up
+    }
+
+    // In-order traversal (left, node, right) = prints flights in
+    // sorted callsign order.
+    void inorder(TNode* n) {
+        if (!n) return;
+        inorder(n->l);
+        cout << "  " << n->f->callsign << " (" << n->f->type << ", " << n->f->sector << ")" << endl;
+        inorder(n->r);
+    }
+
+    // Delete every node (post-order: children first, then the node).
+    // This frees the tree nodes only, not the Flight objects.
+    void destroy(TNode* n) { if (!n) return; destroy(n->l); destroy(n->r); delete n; }
+
+public:
+    BSTflight() { root = nullptr; }               // start with an empty tree
+    virtual ~BSTflight() { destroy(root); }       // free all nodes when the object dies
+
+    // Public functions: these just start the recursion from the root.
+    void insert(Flight* f) { root = ins(root, f); }
+    void remove(const string& cs) { root = del(root, cs); }
+
+    // Search by callsign. Goes left or right at each step (no recursion).
+    // Returns the Flight, or nullptr if it is not in the tree.
+   // Search for a flight by callsign (no recursion, just a loop).
+// Returns the Flight if found, or nullptr if it is not in the tree.
+    Flight* search(const string& cs) {
+        TNode* c = root;                  // start at the top of the tree
+
+        while (c) {                       // keep going until we fall off the tree
+            // Found it: this node's callsign matches
+            if (cs == c->f->callsign) {
+                return c->f;
+            }
+            // Our callsign is smaller: the flight can only be on the left side
+            else if (cs < c->f->callsign) {
+                c = c->l;
+            }
+            // Our callsign is bigger: the flight can only be on the right side
+            else {
+                c = c->r;
+            }
+        }
+
+        return nullptr;                   // reached an empty spot: not in the tree
+    }
+
+    void inorderTraversal() { inorder(root); }      // prints the manifest sorted by callsign
+    int height() { return ht(root); }               // height of the whole tree (used in BST vs AVL test)
+    void destroyTree() { destroy(root); root = nullptr; }   // empty the tree but keep using it
 };
