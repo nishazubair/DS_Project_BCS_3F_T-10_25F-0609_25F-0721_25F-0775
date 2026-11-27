@@ -473,3 +473,95 @@ public:
     int height() { return ht(root); }               // height of the whole tree (used in BST vs AVL test)
     void destroyTree() { destroy(root); root = nullptr; }   // empty the tree but keep using it
 };
+
+//  MODULE 5 : AVLflight (self-balancing version of the BST)
+//  What it does: works exactly like BSTflight, but after every insert
+//  or delete it checks if the tree has become lopsided and fixes it
+//  with rotations. This keeps the height small (about log n).
+//  It inherits everything from BSTflight and only replaces fix().
+//  Balance factor of a node = height(left) - height(right)
+//  AVL rule: the balance factor must always be -1, 0 or +1.
+
+class AVLflight : public BSTflight {
+
+    // ---- Single rotation to the RIGHT (used when the LEFT side is too tall) ----
+    //        y                x
+    //       / \              / \
+    //      x   C    -->     A   y
+    //     / \                  / \
+    //    A   B                B   C
+    TNode* rotateRight(TNode* y) {
+        TNode* x = y->l;      // x is y's left child, it will become the new top
+        y->l = x->r;          // x's right subtree (B) moves to y's left
+        x->r = y;             // y becomes x's right child
+        upd(y);               // y is lower now, so update its height FIRST
+        upd(x);               // then update x (the new top)
+        return x;             // x is the new root of this subtree
+    }
+
+    // ---- Single rotation to the LEFT (used when the RIGHT side is too tall) ----
+    //      x                    y
+    //     / \                  / \
+    //    A   y      -->       x   C
+    //       / \              / \
+    //      B   C            A   B
+    TNode* rotateLeft(TNode* x) {
+        TNode* y = x->r;      // y is x's right child, it will become the new top
+        x->r = y->l;          // y's left subtree (B) moves to x's right
+        y->l = x;             // x becomes y's left child
+        upd(x);               // x is lower now, so update its height FIRST
+        upd(y);               // then update y (the new top)
+        return y;             // y is the new root of this subtree
+    }
+
+    // ---- Double rotation: Left-Right (LR case) ----
+    // The left child is heavy on ITS RIGHT side, so a single right
+    // rotation is not enough. First rotate the left child to the left,
+    // then rotate the node itself to the right.
+    TNode* rotateLeftRight(TNode* n) {
+        n->l = rotateLeft(n->l);   // step 1: fix the left child
+        return rotateRight(n);     // step 2: rotate the node
+    }
+
+    // ---- Double rotation: Right-Left (RL case) ----
+    // The right child is heavy on ITS LEFT side. First rotate the right
+    // child to the right, then rotate the node itself to the left.
+    TNode* rotateRightLeft(TNode* n) {
+        n->r = rotateRight(n->r);  // step 1: fix the right child
+        return rotateLeft(n);      // step 2: rotate the node
+    }
+
+protected:
+    // Replaces BSTflight::fix(). Called on the way back up after every
+    // insert and delete, so every node on the path gets checked.
+    TNode* fix(TNode* n) override {
+        upd(n);                            // first refresh this node's height
+
+        int b = ht(n->l) - ht(n->r);       // balance factor
+
+        // ---- LEFT side too tall (b > 1) ----
+        if (b > 1) {
+            // LR case: the left child leans to the right -> double rotation
+            if (ht(n->l->l) < ht(n->l->r)) {
+                n = rotateLeftRight(n);
+            }
+            // LL case: the left child leans left (or is even) -> single rotation
+            else {
+                n = rotateRight(n);
+            }
+        }
+        // ---- RIGHT side too tall (b < -1) ----
+        else if (b < -1) {
+            // RL case: the right child leans to the left -> double rotation
+            if (ht(n->r->r) < ht(n->r->l)) {
+                n = rotateRightLeft(n);
+            }
+            // RR case: the right child leans right (or is even) -> single rotation
+            else {
+                n = rotateLeft(n);
+            }
+        }
+
+        return n;   // return the (possibly new) top of this subtree
+    }
+};
