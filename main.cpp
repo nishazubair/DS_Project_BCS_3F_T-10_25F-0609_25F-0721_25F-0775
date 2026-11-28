@@ -311,7 +311,43 @@ public:
 
     void displayStats() {
         cout << "Hash table: load factor " << (double)count / HASH_SIZE
-            << ", collisions " << collisions << ", longest probe " << longest << endl;
+             << ", collisions " << collisions << ", longest probe " << longest << endl;
+    }
+};
+
+class EmergencyLanding {
+    Queue<Flight*> q;      // routine flights (priority 9), first come first served
+    Heap<Flight*> hp;      // emergencies (priority 1..8), most urgent first
+public:
+    void enqueueNormal(Flight* f) { q.push(f); }
+    Flight* dequeueNormal() { return q.pop(); }
+    Flight* frontNormal() { return q.front(); }
+    bool isEmptyNormal() { return q.empty(); }
+
+    // heap key combines both fields: key = priority * 1000 + arrivalTick
+    // a smaller priority number wins, and on a tie the earlier arrival wins
+    void insertEmergency(Flight* f) { hp.push(f->priority * 1000L + f->arrivalTick, f); }
+    Flight* extractMin() { return hp.pop(); }
+    Flight* peekMin() { return hp.top(); }
+    bool isEmptyHeap() { return hp.empty(); }
+
+    // a flight leaves both structures (landed, crashed, cleared or re-prioritised)
+    void remove(Flight* f) {
+        q.remove(f);
+        hp.remove(f);
+    }
+
+    void displayNormalQueue() {
+        cout << "Normal landing queue (" << q.size() << "):" << endl;
+        for (int i = 0; i < q.size(); i++)
+            cout << "  " << i + 1 << ". " << q.at(i)->callsign << " -> " << q.at(i)->runway << endl;
+    }
+
+    void displayHeap() {
+        cout << "Emergency heap (" << hp.size() << "), index 0 is dispatched next:" << endl;
+        for (int i = 0; i < hp.size(); i++)
+            cout << "  [" << i << "] " << hp.at(i)->callsign << " " << PRIO_NAME[hp.at(i)->priority]
+                 << " (arrived tick " << hp.at(i)->arrivalTick << ")" << endl;
     }
 };
 
