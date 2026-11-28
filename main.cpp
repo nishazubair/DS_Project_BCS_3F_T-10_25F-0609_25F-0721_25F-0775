@@ -351,6 +351,62 @@ public:
     }
 };
 
+// saved state of one flight (kind 0) or one cyber alert (kind 1)
+// chain = how many extra snapshots below this one on the stack belong to the same command
+struct Snap {
+    int kind, alertIdx, priority, window, arrival, delta, chain;
+    string callsign, runway, sector;
+    bool cleared, handled, cut;
+};
+
+class CommandHistory {
+    struct L { string text; L* prev, * next; };      // doubly linked log node
+    L* head, * tail;
+    Stack<Snap> undoS, redoS;
+public:
+    CommandHistory() { head = tail = nullptr; }
+
+    ~CommandHistory() {
+        while (head) { L* n = head->next; delete head; head = n; }
+    }
+
+    // append one line to the log at the tail
+    void logCommand(const string& action, const string& callsign, int tick) {
+        L* n = new L{ "Tick " + to_string(tick) + ": " + action + " " + callsign, tail, nullptr };
+        if (tail) tail->next = n; else head = n;
+        tail = n;
+    }
+
+    void pushSnapshot(Snap s) { undoS.push(s); redoS.clear(); }   // a new command invalidates redo
+    void pushUndoOnly(Snap s) { undoS.push(s); }                  // used by redo and grouped commands
+    void pushRedoOnly(Snap s) { redoS.push(s); }                  // used by undo
+
+    // pop the newest snapshot; false when the stack is empty
+    bool undo(Snap& out) {
+        if (undoS.empty()) return false;
+        out = undoS.pop();
+        return true;
+    }
+
+    bool redo(Snap& out) {
+        if (redoS.empty()) return false;
+        out = redoS.pop();
+        return true;
+    }
+
+    // walk the list backwards from the tail
+    void displayHistory(int count) {
+        cout << "Last commands (newest first):" << endl;
+        int i = 0;
+        for (L* c = tail; c && i < count; c = c->prev, i++)
+            cout << "  " << c->text << endl;
+    }
+
+    void displayLastCommand() {
+        if (tail) cout << "Last command: " << tail->text << endl;
+    }
+};
+
 //  MODULE 4 : BSTflight (Binary Search Tree for the flight manifest)
 //  What it does: keeps all active flights sorted by callsign (BB-211,
 //  BB-437, ...) so we can search, insert and delete a flight quickly.
