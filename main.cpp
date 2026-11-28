@@ -311,7 +311,7 @@ public:
 
     void displayStats() {
         cout << "Hash table: load factor " << (double)count / HASH_SIZE
-             << ", collisions " << collisions << ", longest probe " << longest << endl;
+            << ", collisions " << collisions << ", longest probe " << longest << endl;
     }
 };
 
@@ -347,7 +347,7 @@ public:
         cout << "Emergency heap (" << hp.size() << "), index 0 is dispatched next:" << endl;
         for (int i = 0; i < hp.size(); i++)
             cout << "  [" << i << "] " << hp.at(i)->callsign << " " << PRIO_NAME[hp.at(i)->priority]
-                 << " (arrived tick " << hp.at(i)->arrivalTick << ")" << endl;
+            << " (arrived tick " << hp.at(i)->arrivalTick << ")" << endl;
     }
 };
 
@@ -436,7 +436,7 @@ protected:   // protected so the AVL class (Module 5) can use these later
     // Called after every insert/delete on the way back up.
     // Plain BST: only refresh the height.
     // "virtual" lets AVL replace this with a version that also balances.
-    virtual TNode* fix(TNode* n) { 
+    virtual TNode* fix(TNode* n) {
         upd(n);
         return n;
     }      // BST: only refresh the height
@@ -658,21 +658,118 @@ protected:
     }
 };
 
-// BST vs AVL height test: 15 callsigns inserted in sorted order
-int main() {
-    BSTflight tb;        // plain BST
-    AVLflight ta;        // self-balancing AVL
-    Flight d[15];        // 15 dummy flights (the trees only store pointers to these)
 
-    for (int i = 0; i < 15; i++) {
-        // Zero-padded names: AA-01 ... AA-15
-        // (padding matters: without it "AA-10" would sort before "AA-2" as text)
-        d[i].callsign = string("AA-") + (i + 1 < 10 ? "0" : "") + to_string(i + 1);
-        tb.insert(&d[i]);
-        ta.insert(&d[i]);
+// MODULE 6 : SpaceGraph
+//  The airspace. Sectors (and runways) are VERTICES, corridors are
+//  undirected EDGES whose weight is the travel time in ticks.
+//  Stored twice: adjacency list (fast neighbour walk for BFS/DFS) and
+//  adjacency matrix (fast weight lookup for Dijkstra / Kruskal).
+//  Both are always kept in sync, also when a cyber attack cuts a corridor.
+
+
+class SpaceGraph {
+public:
+    struct Edge { int to, w; Edge* next; };
+private:
+    string names[MAX_V];
+    Edge* adj[MAX_V];
+    int** mat;
+    int n;
+
+    void dropEdge(int a, int b) {       // delete the edge a->b from a's list
+        Edge* p = nullptr;
+        Edge* c = adj[a];
+
+        while (c && c->to != b) {
+            p = c;
+            c = c->next;
+        }
+
+        if (!c)
+            return;
+
+        if (p)
+            p->next = c->next;
+        else
+            adj[a] = c->next;
+
+        delete c;
     }
 
-    cout << "BST height = " << tb.height() << endl;
-    cout << "AVL height = " << ta.height() << endl;
-    return 0;
-}
+public:
+    SpaceGraph() {
+        n = 0;
+        mat = new int* [MAX_V];
+
+        for (int i = 0; i < MAX_V; i++) {
+            mat[i] = new int[MAX_V]();
+            adj[i] = nullptr;
+        }
+    }
+
+    ~SpaceGraph() {
+        for (int i = 0; i < MAX_V; i++) {
+            while (adj[i]) {
+                Edge* e = adj[i];
+                adj[i] = e->next;
+                delete e;
+            }
+            delete[] mat[i];
+        }
+        delete[] mat;
+    }
+
+    int addSector(const string& name) {
+        names[n] = name;
+        return n++;
+    }
+
+    void addCorridor(int a, int b, int w) {      // undirected: add both directions in both structures
+        adj[a] = new Edge{ b, w, adj[a] };
+        adj[b] = new Edge{ a, w, adj[b] };
+        mat[a][b] = mat[b][a] = w;
+    }
+
+    void removeCorridor(int a, int b) {
+        dropEdge(a, b);
+        dropEdge(b, a);
+        mat[a][b] = mat[b][a] = 0;
+    }
+
+    int getWeight(int a, int b) { return mat[a][b]; }          // 0 = no corridor
+    int getSectorCount() { return n; }
+    string nameOf(int i) { return names[i]; }
+    int indexOf(const string& name) {
+        for (int i = 0; i < n; i++)
+            if (names[i] == name)
+                return i;
+        return -1;
+    }
+
+    bool isRunway(int i) { return names[i].substr(0, 6) == "Runway"; }
+    Edge* first(int u) { return adj[u]; }
+
+    void displayAdjacencyList() {
+        cout << "--- Adjacency List ---" << endl;
+        for (int i = 0; i < n; i++) {
+            cout << i << " " << names[i] << " :";
+            for (Edge* e = adj[i]; e; e = e->next)
+                cout << " -> " << names[e->to] << "(" << e->w << ")";
+            cout << endl;
+        }
+    }
+
+    void displayAdjacencyMatrix() {
+        cout << "--- Adjacency Matrix (row/col = sector index, 0 = no corridor) ---" << endl;
+        for (int i = 0; i < n; i++) {
+            cout << (i < 10 ? " " : "") << i << " |";
+            for (int j = 0; j < n; j++) cout << (mat[i][j] < 10 ? "  " : " ") << mat[i][j];
+            cout << endl;
+        }
+    }
+
+    void listSectors() {
+        for (int i = 0; i < n; i++)
+            cout << "  [" << i << "] " << names[i] << endl;
+    }
+};
