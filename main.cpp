@@ -916,3 +916,107 @@ public:
         return true;
     }
 };
+
+//  MODULE 8 : RouteFinder
+//  Dijkstra's shortest path with our own min-heap (Heap template) and
+//  parent tracing to rebuild the route. Weights = corridor travel time.
+//    Dijkstra is NOT run behind the player's back every tick. It runs
+//      - once when a flight is created (to give it a planned route),
+//      - when the player clears / reroutes a flight (07 / 08),
+//      - when the player asks for it (20),
+//    so a cyber attack that cuts a corridor really blocks flights until
+//    the player reacts.
+
+struct Route { 
+    int path[MAX_V];
+    int len;
+    int cost;
+};     // len < 2 means "no route"
+
+class RouteFinder {
+    SpaceGraph& g;
+public:
+    RouteFinder(SpaceGraph& gr) : g(gr) {}
+
+    Route findFastestRoute(int src, int dest) {
+        const int INF = 999999;
+        int n = g.getSectorCount();
+
+        int dist[MAX_V];
+        int par[MAX_V];
+        bool done[MAX_V];
+
+        for (int i = 0; i < n; i++) {
+            dist[i] = INF;
+            par[i] = -1;
+            done[i] = false;
+        }
+
+        Heap<int> h;
+        dist[src] = 0;
+        h.push(0, src);
+        while (!h.empty()) {
+            int u = h.pop();
+            if (done[u])
+                continue;
+            done[u] = true;
+
+            for (int v = 0; v < n; v++) {               // edge weights from the adjacency matrix
+                int w = g.getWeight(u, v);
+                if (w > 0 && !done[v] && dist[u] + w < dist[v]) {
+                    dist[v] = dist[u] + w;
+                    par[v] = u;
+                    h.push(dist[v], v);
+                }
+            }
+        }
+
+        Route r;
+        r.len = 0;
+        r.cost = -1;
+
+        if (dist[dest] >= INF) 
+            return r;                // unreachable (e.g. corridor disabled)
+        
+        int tmp[MAX_V];
+        int c = 0;
+
+        for (int v = dest; v != -1; v = par[v])
+            tmp[c++] = v;       // parent tracing, dest -> src
+
+        for (int i = c - 1; i >= 0; i--)
+            r.path[r.len++] = tmp[i];  // reverse into src -> dest
+
+        r.cost = dist[dest]; return r;
+    }
+
+    void printRoute(Route r) {
+        if (r.len < 2) {
+            cout << "No route available." << endl;
+            return;
+        }
+
+        for (int i = 0; i < r.len; i++) 
+            cout << g.nameOf(r.path[i]) << (i < r.len - 1 ? " -> " : "");
+
+        cout << endl << "Total travel time: " << r.cost << " ticks" << endl;
+    }
+    // nearest EMERGENCY-capable runway (Runway 12 or 09) from a sector, -1 if none reachable
+    int nearestEmergencyRunway(int src) {
+        int a = g.indexOf("Runway 12");
+        int b = g.indexOf("Runway 09");
+        int best = -1;
+        int bc = 999999;
+
+        int c[2] = { a, b };
+        for (int i = 0; i < 2; i++) 
+            if (c[i] >= 0) { 
+                Route r = findFastestRoute(src, c[i]);
+                if (r.len > 1 && r.cost < bc) {
+                    bc = r.cost;
+                    best = c[i];
+                }
+            }
+        return best;
+    }
+};
