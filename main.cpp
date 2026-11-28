@@ -773,3 +773,146 @@ public:
             cout << "  [" << i << "] " << names[i] << endl;
     }
 };
+
+
+//  MODULE 7 : RadarSweep
+//  BFS (uses the Queue template) explores sector by sector in rings;
+//  DFS (uses the Stack template) dives deep first.
+//  Used for: radar sweep display, "is X reachable from Y", and the
+//  missing-flight search (BFS from the Control Tower, index 0).
+
+class RadarSweep {
+    SpaceGraph& g;
+    // BFS core: fills visit order, hop level and parent of every vertex
+    int core(int src, int* order, int* lvl, int* par) {
+        int n = g.getSectorCount();
+        int cnt = 0;
+        bool seen[MAX_V];
+
+        for (int i = 0; i < n; i++) {
+            seen[i] = false;
+            lvl[i] = -1;
+            par[i] = -1;
+        }
+
+        Queue<int> q;
+        q.push(src);
+        seen[src] = true;
+        lvl[src] = 0;
+
+        while (!q.empty()) {
+            int u = q.pop();
+            order[cnt++] = u;
+            for (SpaceGraph::Edge* e = g.first(u); e; e = e->next)
+                if (!seen[e->to]) {
+                    seen[e->to] = true;
+                    lvl[e->to] = lvl[u] + 1;
+                    par[e->to] = u;
+                    q.push(e->to);
+                }
+        }
+        return cnt;
+    }
+public:
+    RadarSweep(SpaceGraph& gr) : g(gr) {}
+
+    int bfsFrom(int src) {          // prints level by level, returns number of visited sectors
+        int order[MAX_V];
+        int lvl[MAX_V];
+        int par[MAX_V];
+
+        int cnt = core(src, order, lvl, par);
+        int cur = -1;
+
+        cout << "BFS from " << g.nameOf(src) << ":" << endl;
+
+        for (int i = 0; i < cnt; i++) {
+            if (lvl[order[i]] != cur) {
+                cur = lvl[order[i]];
+                cout << endl << "  Level " << cur << ": ";
+            }
+            cout << g.nameOf(order[i]) << " | ";
+        }
+
+        cout << endl;
+        return cnt;
+    }
+
+    void withinHops(int src, int k) {
+        int order[MAX_V];
+        int lvl[MAX_V];
+        int par[MAX_V];
+
+        int cnt = core(src, order, lvl, par);
+        cout << "Sectors within " << k << " hops of " << g.nameOf(src) << ": ";
+
+        for (int i = 0; i < cnt; i++){
+            if (lvl[order[i]] <= k) {
+                cout << g.nameOf(order[i]) << " | ";
+            }
+        }
+        cout << endl;
+    }
+
+    void dfsFrom(int src) {
+        bool seen[MAX_V];
+        int n = g.getSectorCount();
+
+        for (int i = 0; i < n; i++)
+            seen[i] = false;
+
+        Stack<int> st;
+        st.push(src);
+
+        cout << "DFS from " << g.nameOf(src) << ": ";
+
+        while (!st.empty()) {
+            int u = st.pop();
+
+            if (seen[u])
+                continue;
+
+            seen[u] = true;
+            cout << g.nameOf(u) << " -> ";
+
+            for (SpaceGraph::Edge* e = g.first(u); e; e = e->next)
+                if (!seen[e->to])
+                    st.push(e->to);
+        }
+        cout << "END" << endl;
+    }
+    // cheap yes/no path check (BFS). The engine uses this kind of check; the
+    // full Dijkstra is only run when the player asks for it or plans a route.
+    bool isReachable(int a, int b) {
+        int o[MAX_V];
+        int l[MAX_V];
+        int p[MAX_V];
+
+        core(a, o, l, p);
+        return l[b] >= 0;
+    }
+
+    // BFS from the Control Tower (index 0) to the last known sector, prints the path
+    bool searchMissingFlight(int lastKnown) {
+        int o[MAX_V];
+        int l[MAX_V];
+        int p[MAX_V];
+        core(0, o, l, p);
+
+        if (l[lastKnown] < 0)
+            return false;
+
+        int path[MAX_V];
+        int len = 0;
+
+        for (int v = lastKnown; v != -1; v = p[v]) 
+            path[len++] = v;      // walk parents back to the tower
+
+        cout << "Path: ";
+        for (int i = len - 1; i >= 0; i--) 
+            cout << g.nameOf(path[i]) << (i ? " -> " : "");
+        cout << endl;
+
+        return true;
+    }
+};
